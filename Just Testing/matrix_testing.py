@@ -42,5 +42,4 @@ print('matrix of scaled img using NN: \n', m2, '\n')
 print('num of pixels in scaled img: ', m2.size)
 print('scaled img dimensions: ', m2.shape)
 
-im1.save(r'C:\Users\selen\Pictures\NN_output.png', 'png')
-im2.save(r'C:\Users\selen\Pictures\BL_output.png', 'png')
+
