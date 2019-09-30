@@ -1,5 +1,10 @@
 from PIL import Image
 import numpy as np
+import sys
+
+# this just makes it so that the matrices aren't printed out w/ ellipses, but for readability, I turned it off
+# np.set_printoptions(threshold=sys.maxsize)
+
 
 '''
 1. Open an image
