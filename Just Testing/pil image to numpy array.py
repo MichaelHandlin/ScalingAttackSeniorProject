@@ -1,7 +1,8 @@
+# https://codeyarns.com/2014/01/16/how-to-convert-between-numpy-array-and-pil-image/
+
 from PIL import Image
 import numpy as np
 
-# a list of lists of tuples
 pixels = [
    [(54, 54, 54), (232, 23, 93), (71, 71, 71), (168, 167, 167)],
    [(204, 82, 122), (54, 54, 54), (168, 167, 167), (232, 23, 93)],
