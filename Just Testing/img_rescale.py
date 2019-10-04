@@ -14,7 +14,6 @@ print('New size: ', im1.size)
 im1.show()
 im2.show()
 
-# this just saves a copy of the scaled image to the directory, can change directory
+# this just saves a copy of the scaled image to the directory, can change directory, testing
 im1.save(r'C:\Users\selen\Pictures\NN_output.png', 'png')
 im2.save(r'C:\Users\selen\Pictures\BL_output.png', 'png')
-
