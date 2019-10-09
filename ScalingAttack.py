@@ -19,6 +19,19 @@ def get_coefficients(src_img, tgt_img, color, side):
         elif side == "L":
             print("todo")
             #CL = _get_left(src_np_r_2d, tgt_w, src_h)
+    elif color == "G":
+        print("G todo")
+        if side == "R":
+            print("GR todo")
+        elif side == "L":
+            print("GL todo")
+    elif color == "B":
+        print("B todo")
+        if side == "R":
+            print("BR todo")
+        elif side == "L":
+            print("BL todo")
+    
     return 1
 
 
@@ -27,3 +40,11 @@ def _get_right(np_arr, src_width, tgt_height):
     q_inv = np.linalg.pinv(np_arr)
     CR = np.dot(q_inv, q_prime)
     return CR
+
+
+def _get_left(np_arr, tgt_width, src_height):
+    q_prime = np.resize(np_arr, (tgt_width, src_height))  #CR is effectively an identity matrix
+    q_inv = np.linalg.pinv(np_arr)
+    CL = np.dot(q_prime, q_inv)
+    return CL
+
