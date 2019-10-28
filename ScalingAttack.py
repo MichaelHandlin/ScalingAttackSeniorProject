@@ -1,6 +1,7 @@
 from PIL import Image
 import numpy as np
 
+
 def get_coefficients(src_img, tgt_img, color, side):
     print("get_coefficients called.")
     src_w, src_h = src_img.size
@@ -17,21 +18,23 @@ def get_coefficients(src_img, tgt_img, color, side):
         if side == "R":
             CR = _get_right(src_np_r_2d, src_w, tgt_h)
         elif side == "L":
-            print("todo")
-            #CL = _get_left(src_np_r_2d, tgt_w, src_h)
+            CL = _get_left(src_np_r_2d, tgt_w, src_h)
     elif color == "G":
-        print("G todo")
+        src_g = list(src_img.getdata(1))
+        src_np_g = np.array(src_g)
+        src_np_g_2d = np.reshape(src_np_g, (src_w, src_h))
         if side == "R":
-            print("GR todo")
+            CR = _get_right(src_np_g_2d, src_w, tgt_h)
         elif side == "L":
-            print("GL todo")
+            CL = _get_left(src_np_g_2d, tgt_w, src_h)
     elif color == "B":
-        print("B todo")
+        src_b = list(src_img.getdata(2))
+        src_np_b = np.array(src_b)
+        src_np_b_2d = np.reshape(src_np_b, (src_w, src_h))
         if side == "R":
             print("BR todo")
         elif side == "L":
             print("BL todo")
-    
     return 1
 
 
@@ -47,4 +50,3 @@ def _get_left(np_arr, tgt_width, src_height):
     q_inv = np.linalg.pinv(np_arr)
     CL = np.dot(q_prime, q_inv)
     return CL
-
