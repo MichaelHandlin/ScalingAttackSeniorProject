@@ -1,7 +1,25 @@
+import numpy
 import ScalingAttack as sa
 from PIL import Image
+
 import cvxpy as cvx
 import dccp
+
+src_img = None
+tgt_img = None
+scale_func = Image.NEAREST  # Subject to change
+try:
+    src_img = Image.open("images/sheep.jpg")
+    tgt_img = Image.open("images/wolf_icon.jpg")
+    sa.src_img = src_img
+    sa.tgt_img = tgt_img
+except IOError:
+    print("One of the files was not found.")
+    exit(-1)
+
+sa.create_attack_image(src_img, tgt_img, scale_func)
+
+'''
 x = cvx.Variable(2)
 y = cvx.Variable(2)
 myprob = cvx.Problem(cvx.Maximize(cvx.norm(x-y,2)), [0<=x, x<=1, 0<=y, y<=1])
@@ -14,7 +32,7 @@ print("cost value =", result[0])
 
 
 
-'''
+
 try:
     src_img = Image.open("images/sheep.jpg")
     tgt_img = Image.open("images/wolf_icon.jpg")
