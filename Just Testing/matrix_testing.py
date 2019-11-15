@@ -35,4 +35,6 @@ matrix_to_img = Image.fromarray(matrix)
 # generates the wolf picture
 matrix_to_img.show()
 
+c = np.corrcoef(matrix)
+print(matrix)
 
