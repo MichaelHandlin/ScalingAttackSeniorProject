@@ -1,30 +1,34 @@
 from tkinter.ttk import *
-import tkinter as tk
 from tkinter import Tk, BOTH, W, N, E, S, ALL, CENTER, Frame, Canvas, filedialog
 from PIL import Image, ImageTk
-from some_function import some_function
+from GUI.some_function import some_function
 
 
 class GUI(Frame):
 
     def __init__(self):
         super().__init__()
-        self.create_GUI()
+        self.create_gui()
 
-    def create_GUI(self):
+    def create_gui(self):
 
+        # This function selects the source image from a selected file
+        # Displays the image through a label on the selected canvas
+        # Finally, stores the selected pil image in the global source_img variable
         def select_src():
-            # gets the dir w/ file as file name #
             global source_img
             filename = filedialog.askopenfilename()
             pil_image = Image.open(filename)
             display_image = ImageTk.PhotoImage(pil_image)
 
-            panel = Label(src_img_canvas, image=display_image)
-            panel.image = display_image
-            src_img_canvas.create_window(300, 133, anchor=CENTER, window=panel)
+            display_lbl = Label(src_img_canvas, image=display_image)
+            display_lbl.image = display_image
+            src_img_canvas.create_window(300, 133, anchor=CENTER, window=display_lbl)
             source_img = pil_image
 
+        # This function selects the target image from a selected file
+        # Displays the image through a label on the selected canvas
+        # Finally, stores the selected pil image in the global target_img variable
         def select_target():
             # gets the dir w/ file as file name #
             global target_img
@@ -32,26 +36,20 @@ class GUI(Frame):
             pil_image = Image.open(filename)
             display_image = ImageTk.PhotoImage(pil_image)
 
-            panel = Label(target_img_canvas, image=display_image)
-            panel.image = display_image
-            target_img_canvas.create_window(300, 133, anchor=CENTER, window=panel)
+            display_lbl = Label(target_img_canvas, image=display_image)
+            display_lbl.image = display_image
+            target_img_canvas.create_window(300, 133, anchor=CENTER, window=display_lbl)
             target_img = pil_image
 
+        # This function clears the images from the canvas/areas
         def clear(canvas):
             canvas.delete(ALL)
 
-        def some_function(source_img, target_img):
-            result = Image.new('RGB', (source_img.width + target_img.width, min(source_img.height, target_img.height)))
-            result.paste(source_img, (0, 0))
-            result.paste(target_img, (source_img.width, 0))
-            display_img = ImageTk.PhotoImage(result)
-            panel = tk.Label(attack_img_canvas, image=display_img)
-            panel.image = display_img
-            attack_img_canvas.create_window(300, 300, anchor=CENTER, window=panel)
-
+        # GUI construction begins here!
         self.master.title("Scaling Attack Image Generator")
         self.pack(fill=BOTH, expand=True)
 
+        # This allows the modules to scale with window resize
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
         self.rowconfigure(1, weight=1)
@@ -84,8 +82,8 @@ class GUI(Frame):
         choose_target = Button(self, text="Choose Target", command=select_target)
         choose_target.grid(row=11, column=0, sticky=W, padx=5)
 
-        #generate_attack = Button(self, text="Generate", command=lambda: scale_img(test_img, (400,200)))
-        generate_attack = Button(self, text="Generate", command=lambda: some_function(source_img, target_img))
+        generate_attack = Button(self, text="Generate", command=lambda: some_function(source_img, target_img,
+                                                                                      attack_img_canvas))
         generate_attack.grid(row=10, column=1, sticky=W, padx=5)
 
         clear_attack_img = Button(self, text="Clear Attack", command=lambda: clear(attack_img_canvas))
@@ -110,3 +108,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
