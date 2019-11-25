@@ -11,6 +11,9 @@ m = 0
 n_prime = 0
 m_prime = 0
 
+'''Input: scaling function ScaleFunc(), source image Sm⇤n, tar-
+get image Tm0⇤n0 , source image size (widths,heights), tar-
+get image size (widtht,heightt)'''
 def create_attack_image(src_img, tgt_img, scale_func):
     global m
     global n
@@ -97,6 +100,8 @@ def get_coefficients(m, n, m_prime, n_prime):
 
     return CL, CR
 
+# source_img size = m x n, target_img size = m' x n'
+# the sum of the elements in each row should = 1
 def _get_inv_coeff(m, n, m_prime, n_prime):
     I_mm = np.identity(m_prime)
     I_nn = np.identity(n_prime)
@@ -126,6 +131,69 @@ def get_perturbation(S, T, CX, delta_1, obj='min', IN_max=255, epsilon=.001):
     #problem = cvx.Problem(function, [0 <= j, j < len(S)])
     return problem.solve()
 
+
+def create_attack_image2(source_img):
+    source_img.convert('RGB')
+    source_img_matrix = np.array(source_img)
+
+    # Take it apart
+    def get_R():
+        element_list = [element[0] for row in source_img_matrix for element in row]
+        R = np.array(element_list)
+        R.shape = (len(source_img_matrix[0]), len(source_img_matrix))
+        return R
+
+    def get_G():
+        element_list = [element[1] for row in source_img_matrix for element in row]
+        G = np.array(element_list)
+        G.shape = (len(source_img_matrix[0]), len(source_img_matrix))
+        return G
+
+
+    def get_B():
+        element_list = [element[2] for row in source_img_matrix for element in row]
+        B = np.array(element_list)
+        B.shape = (len(source_img_matrix[0]), len(source_img_matrix))
+        return B
+
+    # this will contain the code that calculates the new R matrix w/ perturbation
+    def calculate_R(R):
+        pass
+
+    # this will contain the code that calculates the new G matrix w/ perturbation
+    def calculate_G(G):
+        pass
+
+    # this will contain the code that calculates the new B matrix w/ perturbation
+    def calculate_B(B):
+        pass
+
+    # Now put it back together - the new one after perturbation calculations
+    def build_image(R, G, B): # use it like build_image(calculate_R(), calculate_G(), calculate_B())
+        # From R, take each element and place it at [][][]
+        # its pretty, but not mine, find another way? or understand it
+        assert R.ndim == 2 and G.ndim == 2 and B.ndim == 2
+        rgb = (R[..., np.newaxis], G[..., np.newaxis], B[..., np.newaxis])
+        return Image.fromarray(np.concatenate(rgb, axis=-1))
+
+    def testing():
+        element_list = [0 if element >= 255 else element+60 for row in get_R() for element in row]
+        matrix = np.array(element_list,dtype='uint8')
+        matrix.shape = (len(get_R()[0]), len(get_R()))
+        return matrix
+
+
+
+    # constraints:
+    # 0 <= A[:,j]m*1<=IN_max
+    IN_max = 255
+    max_constraint1 = IN_max
+    # ||CL * A[:,j]m*1-T[:,j]m_prime*1||inf <= ellipson * IN_max
+    # max_constraint2 = CL * A
+    # Do the perturbation math
+    # put the matrices back together and return as image
+
+    return build_image(testing(), get_G(), get_B()) # call build_image(calculate_R(), calculate_G(), calculate_B())
 
 # Terminates the program if an error is detected
 def terminate(error):
