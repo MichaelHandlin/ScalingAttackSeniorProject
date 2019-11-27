@@ -30,25 +30,28 @@ def create_attack_image(src_img, tgt_img, scale_func):
     src_red_arr, src_blue_arr, src_green_arr = get_color_arrays(src_red, src_blue, src_green)
     s_scaled_r, s_scaled_b, s_scaled_g = scale_vertical(src_red_arr, src_blue_arr, src_green_arr, CL)
     S_mnp = merge_channels(s_scaled_r, s_scaled_b, s_scaled_g, m, n_prime)
-    delta_v1_red, delta_v1_blue, delta_v1_green = np.zeros(shape=(m, n_prime))
-    #  delta_v1_blue = np.zeros(shape=(m, n_prime))
-    #  delta_v1_green = np.zeros(shape=(m, n_prime))
+    delta_v1_red = np.zeros(shape=(m, n_prime))
+    delta_v1_blue = np.zeros(shape=(m, n_prime))
+    delta_v1_green = np.zeros(shape=(m, n_prime))
     S_mnp_img = Image.fromarray(S_mnp)
     temp_atk = ImageChops.add(S_mnp_img, tgt_img.resize((m, n_prime)))
+    temp_atk.save("test.jpg", "JPEG")
     temp_atk_r, temp_atk_b, temp_atk_g = temp_atk.split()
+    temp_atk_r_arr, temp_atk_b_arr, temp_atk_g_arr = get_color_arrays(temp_atk_r, temp_atk_b, temp_atk_g)
+    print(temp_atk_r_arr.shape, )
     for col in range(n_prime):  # For each column
-        delta_v1_red[:, col] = get_perturbation(s_scaled_r[:, col], tgt_red_arr[:, col], CL, temp_atk_r)
-        delta_v1_blue[:, col] = get_perturbation(s_scaled_b[:, col], tgt_blue_arr[:, col], CL, temp_atk_b)
-        delta_v1_green[:, col] = get_perturbation(s_scaled_g[:, col], tgt_green_arr[:, col], CL, temp_atk_g)
+        delta_v1_red[:, col] = get_perturbation(s_scaled_r[:, col], tgt_red_arr[:, col], CL, temp_atk_r_arr, col)
+        delta_v1_blue[:, col] = get_perturbation(s_scaled_b[:, col], tgt_blue_arr[:, col], CL, temp_atk_b_arr, col)
+        delta_v1_green[:, col] = get_perturbation(s_scaled_g[:, col], tgt_green_arr[:, col], CL, temp_atk_g_arr, col)
     attack_mnp_r = s_scaled_r + delta_v1_red
     attack_mnp_b = s_scaled_b + delta_v1_blue
     attack_mnp_g = s_scaled_g + delta_v1_green
 
     delta_h1_red, delta_h1_blue, delta_h1_green = np.zeros(shape=(m, n))
     for row in range(m):  # For each column
-        delta_v1_red[row, :] = get_perturbation(s_scaled_r[row, :], tgt_red_arr[row, :], CR, attack_mnp_r)
-        delta_v1_blue[row, :] = get_perturbation(s_scaled_b[row, :], tgt_blue_arr[row, :], CR, attack_mnp_b)
-        delta_v1_green[row, :] = get_perturbation(s_scaled_g[row, :], tgt_green_arr[row, :], CR, attack_mnp_g)
+        delta_v1_red[row, :] = get_perturbation(s_scaled_r[row, :], tgt_red_arr[row, :], CR, attack_mnp_r, row)
+        delta_v1_blue[row, :] = get_perturbation(s_scaled_b[row, :], tgt_blue_arr[row, :], CR, attack_mnp_b, row)
+        delta_v1_green[row, :] = get_perturbation(s_scaled_g[row, :], tgt_green_arr[row, :], CR, attack_mnp_g, row)
     attack_r = src_red_arr + delta_v1_red
     attack_b = src_blue_arr + delta_v1_blue
     attack_g = src_green_arr + delta_v1_green
@@ -97,14 +100,18 @@ def _get_inv_coeff(m, n, m_prime, n_prime):
 #   S is column s[:, col], T is T[:, col], CX is CL.
 # if row-wise
 #   S is row S[row, :], T is A*[row, :], CX is CR.
-def get_perturbation(S, T, CX, delta_1, obj='min', IN_max=255, epsilon=.001):
+def get_perturbation(S, T, CX, delta_1, j, obj='min', direction="V", IN_max=255, epsilon=.001):
+    print(j)
     global m_prime
     # Ensure constraints are met
-    j = cvx.Variable(2)
     delta_1T = np.transpose(delta_1)
-    function = cvx.Minimize(delta_1T[:, j] * np.identity(m_prime) * delta_1[:, j])
-    problem = cvx.Problem(function, [0 <= T[:, j], T[:, j] <= IN_max, cvx.norm(CX*A[:, j] - T[:, j], "inf") < epsilon *IN_max])
-    #problem = cvx.Problem(function, [0 <= j, j < len(S)])
+    print("CX Shape:", CX.shape)
+    print("Delta_1 shape: ", delta_1.shape)
+    function = cvx.Minimize(delta_1T[:, j] * np.identity(n_prime) * delta_1[:, j])
+    # function = cvx.Minimize(np.dot(delta_1T[j, :], np.identity(m_prime)) * delta_1[:, j])
+    # constraints = cvx.Constant([0 <= T[:, j], T[:, j] <= IN_max, cvx.norm(CX*delta_1[:, j] - T[:, j], "inf") < epsilon *IN_max])
+    problem = cvx.Problem(function, [0 <= T, T <= IN_max, cvx.norm(CX*delta_1 - T, "inf") < epsilon *IN_max])
+    # problem = cvx.Problem(function, [0 <= j, j < len(S)])
     return problem.solve()
 
 
@@ -131,7 +138,9 @@ def scale_vertical(red_arr, blue_arr, green_arr, CL):
 
 
 def merge_channels(red_arr, blue_arr, green_arr, width, height):
-    atk_img_arr = np.zeros((width, height, 3), dtype=np.uint8)
+    atk_img_arr = np.zeros((height, width, 3), dtype=np.uint8)
+    print(atk_img_arr.shape)
+    print(red_arr.shape)
     for y in range(atk_img_arr.shape[0]):
         for x in range(atk_img_arr.shape[1]):
             atk_img_arr[y][x][0] = red_arr[y][x]
