@@ -11,6 +11,7 @@ m = 0
 n_prime = 0
 m_prime = 0
 
+
 def create_attack_image(src_img, tgt_img, scale_func):
     global m
     global n
@@ -25,61 +26,38 @@ def create_attack_image(src_img, tgt_img, scale_func):
     tgt_img.convert('RGB')  # Remove Alpha Channel
     tgt_red, tgt_green, tgt_blue = tgt_img.split()
     src_red, src_green, src_blue = src_img.split()
-    tgt_red_arr = np.array(tgt_red)
-    tgt_blue_arr = np.array(tgt_blue)
-    tgt_green_arr = np.array(tgt_green)
-    tgt_arrs = [tgt_red_arr, tgt_blue_arr, tgt_green_arr]
-    src_red_arr = np.array(src_red)
-    src_red_scaled = np.dot(np.dot(CL, src_red_arr), CR)
-    src_blue_arr = np.array(src_blue)
-    src_blue_scaled = np.dot(np.dot(CL, src_blue_arr), CR)
-    src_green_arr = np.array(src_green)
-    src_green_scaled = np.dot(np.dot(CL, src_green_arr), CR)
-    src_arrs = [src_red_arr, src_blue_arr, src_green_arr]
-    #(Image.fromarray(np.dot(np.dot(CL, src_green_arr), CR)).convert("RGB")).save("test.jpg")
-    #Successfully makes a scaled image.
-    atk_img_arr = np.zeros((n, m, 3), dtype=np.uint8)
-    CL_inv, CR_inv = _get_inv_coeff(m, n, m_prime, n_prime)
-    tgt_red_scaled = np.dot(np.dot(CL_inv, tgt_red_arr), CR_inv)
-    (Image.fromarray(src_red_scaled).convert("RGB")).save("tgt_red_scaled.png")
-    tgt_blue_scaled = np.dot(np.dot(CL_inv, tgt_blue_arr), CR_inv)
-    tgt_green_scaled = np.dot(np.dot(CL_inv, tgt_green_arr), CR_inv)
-    for y in range(atk_img_arr.shape[0]):
-        for x in range(atk_img_arr.shape[1]):
-            atk_img_arr[y][x][0] = tgt_red_scaled[y][x]
-            atk_img_arr[y][x][1] = tgt_green_scaled[y][x]
-            atk_img_arr[y][x][2] = tgt_blue_scaled[y][x]
-    test_image = ImageChops.add(src_img, Image.fromarray(atk_img_arr))
-    test_image = test_image.resize((n_prime, m_prime))
-    test_image.save("test1.png")
-    #ImageChops.add(Image.fromarray(atk_img_arr), tgt_img).save("test.jpg")
-    atk_arrs = []
-    #for i in range(3):
-    #    atk_arrs[i] = Image.fromarray()
+    tgt_red_arr, tgt_blue_arr, tgt_green_arr = get_color_arrays(tgt_red, tgt_blue, tgt_green)
+    src_red_arr, src_blue_arr, src_green_arr = get_color_arrays(src_red, src_blue, src_green)
+    s_scaled_r, s_scaled_b, s_scaled_g = scale_vertical(src_red_arr, src_blue_arr, src_green_arr, CL)
+    S_mnp = merge_channels(s_scaled_r, s_scaled_b, s_scaled_g, m, n_prime)
+    delta_v1_red = np.zeros(shape=(m, n_prime))
+    delta_v1_blue = np.zeros(shape=(m, n_prime))
+    delta_v1_green = np.zeros(shape=(m, n_prime))
+    S_mnp_img = Image.fromarray(S_mnp)
+    temp_atk = ImageChops.add(S_mnp_img, tgt_img.resize((m, n_prime)))
+    temp_atk.save("test.jpg", "JPEG")
+    temp_atk_r, temp_atk_b, temp_atk_g = temp_atk.split()
+    temp_atk_r_arr, temp_atk_b_arr, temp_atk_g_arr = get_color_arrays(temp_atk_r, temp_atk_b, temp_atk_g)
+    print(temp_atk_r_arr.shape, )
+    for col in range(n_prime):  # For each column
+        delta_v1_red[:, col] = get_perturbation(s_scaled_r[:, col], tgt_red_arr[:, col], CL, temp_atk_r_arr, col)
+        delta_v1_blue[:, col] = get_perturbation(s_scaled_b[:, col], tgt_blue_arr[:, col], CL, temp_atk_b_arr, col)
+        delta_v1_green[:, col] = get_perturbation(s_scaled_g[:, col], tgt_green_arr[:, col], CL, temp_atk_g_arr, col)
+    attack_mnp_r = s_scaled_r + delta_v1_red
+    attack_mnp_b = s_scaled_b + delta_v1_blue
+    attack_mnp_g = s_scaled_g + delta_v1_green
 
-
-    #tgt_blue_img = Image.fromarray(tgt_blue)
-    # Create temp image to initialize delta v1
-    #temp_img = Image.fromarray(CL * np.array(tgt_img) * CR) #operands could not be broadcast together with shapes (900,256) (256,256,3)
-    # are those color channels?
-    # Missing a step here to get the shapes to be compatible.
-    # np.array(Image.open(src), np.float)
-    # temp_img.show()
-    #temp_tgt_img = ImageChops.add(src_img, Image.fromarray(CL * np.array(tgt_img) * CR))
-    #temp_tgt_img.show()
-    #temp_delta_v1 = np.array(temp_tgt_img) - np.array(src_img)
-    #delta_v1 = np.zeros(shape=(m, n_prime))
-    #S_mnp = np.array(src_img.resize((m, n_prime), scale_func))
-    #for col in range(n_prime):
-    #    delta_v1[:, col] = get_perturbation(S_mnp[:, col], tgt_img[:, col], temp_delta_v1, CL)
-    #A_mnp = S_mnp + delta_v1
-
-    #delta_h1 = np.zeros(shape=(m, n))
-    #for row in range(m):
-    #    delta_h1[row, :] = get_perturbation(src_img[row, :], A_mnp[row, :], CR)
-    #A_mn = src_img + delta_h1
-    #return Image.fromarray(A_mn)
-    return Image.fromarray(CL)
+    delta_h1_red, delta_h1_blue, delta_h1_green = np.zeros(shape=(m, n))
+    for row in range(m):  # For each column
+        delta_v1_red[row, :] = get_perturbation(s_scaled_r[row, :], tgt_red_arr[row, :], CR, attack_mnp_r, row)
+        delta_v1_blue[row, :] = get_perturbation(s_scaled_b[row, :], tgt_blue_arr[row, :], CR, attack_mnp_b, row)
+        delta_v1_green[row, :] = get_perturbation(s_scaled_g[row, :], tgt_green_arr[row, :], CR, attack_mnp_g, row)
+    attack_r = src_red_arr + delta_v1_red
+    attack_b = src_blue_arr + delta_v1_blue
+    attack_g = src_green_arr + delta_v1_green
+    attack_img_arr = merge_channels(attack_r, attack_b, attack_g, m, n)
+    attack_img = Image.fromarray(attack_img_arr)
+    return attack_img
 
 
 def get_coefficients(m, n, m_prime, n_prime):
@@ -95,7 +73,10 @@ def get_coefficients(m, n, m_prime, n_prime):
     D_nnp = Image.fromarray(np.array(I_mm * IN_max)).resize((m_prime, m))  # D_n*n'
     CR = np.array(D_nnp) / IN_max
 
+    print(CL.shape)
+    print(CR.shape)
     return CL, CR
+
 
 def _get_inv_coeff(m, n, m_prime, n_prime):
     I_mm = np.identity(m_prime)
@@ -110,76 +91,65 @@ def _get_inv_coeff(m, n, m_prime, n_prime):
     D_nnp = Image.fromarray(np.array(I_nn * IN_max)).resize((m, m_prime))  # D_n*n'
     CR = np.array(D_nnp) / IN_max
 
+    print(CL.shape)
+    print(CR.shape)
     return CL, CR
+
 
 # if columnwise,
 #   S is column s[:, col], T is T[:, col], CX is CL.
 # if row-wise
 #   S is row S[row, :], T is A*[row, :], CX is CR.
-def get_perturbation(S, T, CX, delta_1, obj='min', IN_max=255, epsilon=.001):
+def get_perturbation(S, T, CX, delta_1, j, obj='min', direction="V", IN_max=255, epsilon=.001):
+    print(j)
     global m_prime
     # Ensure constraints are met
-    j = cvx.Variable(2)
     delta_1T = np.transpose(delta_1)
-    function = cvx.Minimize(delta_1T[:, j] * np.identity(m_prime) * delta_1[:, j])
-    problem = cvx.Problem(function, [0 <= T[:, j], T[:, j] <= IN_max, cvx.norm(CX*A[:, j] - T[:, j], "inf")] < epsilon *IN_max)
-    #problem = cvx.Problem(function, [0 <= j, j < len(S)])
+    print("CX Shape:", CX.shape)
+    print("Delta_1 shape: ", delta_1.shape)
+    function = cvx.Minimize(delta_1T[:, j] * np.identity(n_prime) * delta_1[:, j])
+    # function = cvx.Minimize(np.dot(delta_1T[j, :], np.identity(m_prime)) * delta_1[:, j])
+    # constraints = cvx.Constant([0 <= T[:, j], T[:, j] <= IN_max, cvx.norm(CX*delta_1[:, j] - T[:, j], "inf") < epsilon *IN_max])
+    problem = cvx.Problem(function, [0 <= T, T <= IN_max, cvx.norm(CX*delta_1 - T, "inf") < epsilon *IN_max])
+    # problem = cvx.Problem(function, [0 <= j, j < len(S)])
     return problem.solve()
 
+
+def get_color_arrays(img_red, img_blue, img_green):
+    out_red = np.array(img_red)
+    out_blue = np.array(img_blue)
+    out_green = np.array(img_blue)
+    return out_red, out_blue, out_green
+
+
+def scale_horizontal(red_arr, blue_arr, green_arr, CR):
+    print(red_arr.shape)
+    scaled_red = np.dot(red_arr, CR)
+    scaled_blue = np.dot(blue_arr, CR)
+    scaled_green = np.dot(green_arr, CR)
+    return scaled_red, scaled_blue, scaled_green
+
+
+def scale_vertical(red_arr, blue_arr, green_arr, CL):
+    scaled_red = np.dot(CL, red_arr)
+    scaled_blue = np.dot(CL, blue_arr)
+    scaled_green = np.dot(CL, green_arr)
+    return scaled_red, scaled_blue, scaled_green
+
+
+def merge_channels(red_arr, blue_arr, green_arr, width, height):
+    atk_img_arr = np.zeros((height, width, 3), dtype=np.uint8)
+    print(atk_img_arr.shape)
+    print(red_arr.shape)
+    for y in range(atk_img_arr.shape[0]):
+        for x in range(atk_img_arr.shape[1]):
+            atk_img_arr[y][x][0] = red_arr[y][x]
+            atk_img_arr[y][x][1] = blue_arr[y][x]
+            atk_img_arr[y][x][2] = green_arr[y][x]
+
+    return atk_img_arr
 
 # Terminates the program if an error is detected
 def terminate(error):
     print(error)
     exit(1)
-
-
-    '''
-def get_coefficients(src_img, tgt_img, color, side):
-    print("get_coefficients called.")
-    src_w, src_h = src_img.size
-    tgt_w, tgt_h = tgt_img.size
-    print(str(src_w) + " " + str(src_h))
-    src_g = list(src_img.getdata(1))That's what
-    src_b = list(src_img.getdata(2))
-
-    if color == "R":
-        src_r = list(src_img.getdata(0))
-        src_np_r = np.array(src_r)
-        src_np_r_2d = np.reshape(src_np_r, (src_w, src_h))
-
-        if side == "R":
-            CR = _get_right(src_np_r_2d, src_w, tgt_h)
-        elif side == "L":
-            CL = _get_left(src_np_r_2d, tgt_w, src_h)
-    elif color == "G":
-        src_g = list(src_img.getdata(1))
-        src_np_g = np.array(src_g)
-        src_np_g_2d = np.reshape(src_np_g, (src_w, src_h))
-        if side == "R":
-            CR = _get_right(src_np_g_2d, src_w, tgt_h)
-        elif side == "L":
-            CL = _get_left(src_np_g_2d, tgt_w, src_h)
-    elif color == "B":
-        src_b = list(src_img.getdata(2))
-        src_np_b = np.array(src_b)
-        src_np_b_2d = np.reshape(src_np_b, (src_w, src_h))
-        if side == "R":
-            print("BR todo")
-        elif side == "L":
-            print("BL todo")
-    return 1
-
-
-def _get_right(np_arr, src_width, tgt_height):
-    q_prime = np.resize(np_arr,(src_width, tgt_height))
-    q_inv = np.linalg.pinv(np_arr)
-    CR = np.dot(q_inv, q_prime)
-    return CR
-
-
-def _get_left(np_arr, tgt_width, src_height):
-    q_prime = np.resize(np_arr, (tgt_width, src_height))  #CR is effectively an identity matrix
-    q_inv = np.linalg.pinv(np_arr)
-    CL = np.dot(q_prime, q_inv)
-    return CL
-'''
