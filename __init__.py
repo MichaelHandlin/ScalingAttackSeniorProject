@@ -1,8 +1,7 @@
 from tkinter.ttk import *
 from tkinter import Tk, BOTH, W, N, E, S, ALL, CENTER, Frame, Canvas, filedialog
 from PIL import Image, ImageTk
-from testing.some_function import some_function, display_attack_img, testing_attack_img
-
+from ScalingAttack import create_attack_image_command
 
 class GUI(Frame):
 
@@ -82,8 +81,8 @@ class GUI(Frame):
         choose_target = Button(self, text="Choose Target", command=select_target)
         choose_target.grid(row=11, column=0, sticky=W, padx=5)
 
-        generate_attack = Button(self, text="Generate", command=lambda: testing_attack_img(source_img,
-                                                                                      attack_img_canvas))
+        generate_attack = Button(self, text="Generate", command=lambda: create_attack_image_command(source_img, target_img,
+                                                                                                    Image.BILINEAR, attack_img_canvas))
         generate_attack.grid(row=10, column=1, sticky=W, padx=5)
 
         clear_attack_img = Button(self, text="Clear Attack", command=lambda: clear(attack_img_canvas))
