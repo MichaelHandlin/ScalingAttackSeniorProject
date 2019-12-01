@@ -1,5 +1,5 @@
-from PIL import Image
-from PIL import ImageChops
+from PIL import Image, ImageChops, ImageTk
+import tkinter as tk
 import numpy as np
 import cvxpy as cvx
 import dccp
@@ -11,6 +11,12 @@ m = 0
 n_prime = 0
 m_prime = 0
 
+def create_attack_image_command(src_img, tgt_img, scale_func, canvas):
+    attack_img = create_attack_image(src_img, tgt_img,scale_func)
+    display_img = ImageTk.PhotoImage(attack_img)
+    panel = tk.Label(canvas, image=display_img)
+    panel.image = display_img
+    canvas.create_window(300, 300, anchor=tk.CENTER, window=panel)
 
 def create_attack_image(src_img, tgt_img, scale_func):
     global m
