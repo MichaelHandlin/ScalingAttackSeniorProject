@@ -24,25 +24,27 @@ def create_attack_image(src_img, tgt_img, scale_func):
 
         IN_max = 255  # Typical maximum pixel value for most image formats
 
-        D_mpm = Image.fromarray(arr).resize((m, m_prime))  # D_m'*m
+        #D_mpm = Image.fromarray(arr).resize((m, m_prime))  # D_m'*m
+        D_mpm = Image.fromarray(I_mm * IN_max).resize((m, m_prime))  # D_m'*m
         CL = np.array(D_mpm) / IN_max
 
         # normalize CL
-        for i in range(m_prime):
-            CL_sum = 0
-            for j in range(m):
-                CL_sum += CL[i, j]
-            CL[i, :] = CL[i, :] / CL_sum
+        #for i in range(m_prime):
+        #    CL_sum = 0
+        #    for j in range(m):
+        #        CL_sum += CL[i, j]
+        #    CL[i, :] = CL[i, :] / CL_sum
 
         # Find CR
-        D_nnp = Image.fromarray(arr).resize((n_prime, n))  # D_n*n'
+        # D_nnp = Image.fromarray(arr).resize((n_prime, n))  # D_n*n'
+        D_nnp = Image.fromarray(I_nn * IN_max).resize((n_prime, n))  # D_n*n'
         CR = np.array(D_nnp) / IN_max
 
-        for i in range(n):
-            CR_sum = 0
-            for j in range(n_prime):
-                CR_sum += CR[i, j]
-            CR[i, :] = CR[i, :] / CR_sum
+        #for i in range(n):
+        #    CR_sum = 0
+        #    for j in range(n_prime):
+        #        CR_sum += CR[i, j]
+        #    CR[i, :] = CR[i, :] / CR_sum
 
         return CL, CR
 
@@ -54,21 +56,20 @@ def create_attack_image(src_img, tgt_img, scale_func):
         return out_red, out_blue, out_green
 
     def scale_horizontal(red_arr, blue_arr, green_arr, CR):
-        scaled_red = np.dot(red_arr, CR)
-        scaled_blue = np.dot(blue_arr, CR)
-        scaled_green = np.dot(green_arr, CR)
+        scaled_red = np.dot(red_arr, CR[0])
+        scaled_green = np.dot(green_arr, CR[1])
+        scaled_blue = np.dot(blue_arr, CR[2])
         return scaled_red, scaled_blue, scaled_green
 
     def scale_vertical(red_arr, blue_arr, green_arr, CL):
         scaled_red = np.dot(CL[0], red_arr)
         scaled_green = np.dot(CL[1], green_arr)
         scaled_blue = np.dot(CL[2], blue_arr)
-        print("Scaled_Blue: " + str(scaled_blue.shape))
         return scaled_red, scaled_green, scaled_blue
 
     n, m = src_img.size
     n_prime, m_prime = tgt_img.size
-    attack_image = ImageChops.add(src_img, tgt_img.resize((m, n)))
+    attack_image = ImageChops.add(src_img, tgt_img.resize((n, m)))
     atk_r_arr, atk_g_arr, atk_b_arr = get_color_arrays(attack_image)
     #Get color matrices for each
     src_img.convert('RGB')  # Remove alpha channel
@@ -83,17 +84,21 @@ def create_attack_image(src_img, tgt_img, scale_func):
     CL_g, CR_g = get_coefficients(src_green_arr)
     CL_b, CR_b = get_coefficients(src_blue_arr)
 
-    s_scaled_r, s_scaled_g, s_scaled_b = scale_vertical(src_red_arr, src_blue_arr, src_green_arr, (CL_r, CL_g, CL_b))
+    s_scaled_r, s_scaled_g, s_scaled_b = scale_horizontal(src_red_arr, src_blue_arr, src_green_arr, (CR_r, CR_g, CR_b))
     S_mnp = merge_channels(s_scaled_r, s_scaled_b, s_scaled_g, m, n_prime)
-
+    Image.fromarray(S_mnp).save("test3.jpg", "JPEG")
     #  Initialize delta arrays
     delta_v1_red = np.zeros(shape=(m, n_prime))
     delta_v1_blue = np.zeros(shape=(m, n_prime))
     delta_v1_green = np.zeros(shape=(m, n_prime))
 
     S_mnp_img = Image.fromarray(S_mnp)
-    temp_atk = ImageChops.add(S_mnp_img, tgt_img.resize((m, n_prime)))
-    temp_atk.save("test.jpg", "JPEG")
+    temp_atk = ImageChops.add(S_mnp_img, tgt_img.resize((n_prime, m)))
+    temp_atk.save("test5.jpg", "JPEG")
+    S_mnp_img.save("test.jpg", "JPEG")
+    src_img.resize((n_prime, m)).save("test2.jpg", "JPEG")
+    tgt_img.resize((n, m)).save("test4.jpg", "JPEG")
+    ImageChops.subtract(temp_atk, S_mnp_img).save("test6.jpg", "JPEG")
     temp_atk_r_arr, temp_atk_b_arr, temp_atk_g_arr = get_color_arrays(temp_atk)
 
     delta_v1_red = get_vert_perturbation(s_scaled_r, tgt_red_arr, CL_r, temp_atk_r_arr, atk_r_arr)
@@ -107,13 +112,14 @@ def create_attack_image(src_img, tgt_img, scale_func):
     delta_h1_red = np.zeros(shape=(m, n))
     delta_h1_blue = np.zeros(shape=(m, n))
     delta_h1_green = np.zeros(shape=(m, n))
+    print("Please be patient. This may take some time.")
     for row in range(m):  # For each column
-        delta_v1_red[row, :] = get_horz_perturbation(s_scaled_r[row, :], tgt_red_arr[row, :], CR_r, attack_mnp_r, atk_r_arr)
-        delta_v1_green[row, :] = get_horz_perturbation(s_scaled_g[row, :], tgt_green_arr[row, :], CR_g, attack_mnp_g, atk_g_arr)
-        delta_v1_blue[row, :] = get_horz_perturbation(s_scaled_b[row, :], tgt_blue_arr[row, :], CR_b, attack_mnp_b, atk_b_arr)
-    attack_r = src_red_arr + delta_v1_red
-    attack_b = src_blue_arr + delta_v1_blue
-    attack_g = src_green_arr + delta_v1_green
+        delta_h1_red = get_horz_perturbation(s_scaled_r, tgt_red_arr, CR_r, attack_mnp_r, atk_r_arr)
+        delta_h1_green = get_horz_perturbation(s_scaled_g, tgt_green_arr, CR_g, attack_mnp_g, atk_g_arr)
+        delta_h1_blue = get_horz_perturbation(s_scaled_b, tgt_blue_arr, CR_b, attack_mnp_b, atk_b_arr)
+    attack_r = src_red_arr + delta_h1_red
+    attack_b = src_blue_arr + delta_h1_blue
+    attack_g = src_green_arr + delta_h1_green
     attack_img_arr = merge_channels(attack_r, attack_b, attack_g, m, n)
     attack_img = Image.fromarray(attack_img_arr)
     return attack_img
@@ -126,7 +132,7 @@ def create_attack_image(src_img, tgt_img, scale_func):
 def get_vert_perturbation(S, T, CL, delta_1, A, obj='min', IN_max=255, epsilon=.01):
     global m_prime
     delta_out = np.zeros(shape=(m, n_prime))
-    delta_temp = CL * delta_1
+    delta_temp = np.dot(CL, delta_1)
 
     for i in range(n_prime):
         delta_out[:, i] = np.dot(np.dot(np.transpose(delta_temp[:, i]), np.identity(m_prime)), delta_temp[:, i])
@@ -163,7 +169,7 @@ def get_vert_perturbation(S, T, CL, delta_1, A, obj='min', IN_max=255, epsilon=.
 def get_horz_perturbation(S, T, CR, delta_1, A, obj='min', IN_max=255, epsilon=.01):
     global m_prime
     delta_out = np.zeros(shape=(m, n))
-    delta_temp = delta_1 * CR
+    delta_temp = np.dot(A, CR)
 
     for i in range(m_prime):
         delta_out[i, :] = np.dot(np.dot(np.transpose(delta_temp[i, :]), np.identity(n_prime)), delta_temp[i, :])
@@ -171,16 +177,15 @@ def get_horz_perturbation(S, T, CR, delta_1, A, obj='min', IN_max=255, epsilon=.
 
 
 def merge_channels(red_arr, blue_arr, green_arr, width, height):
-    atk_img_arr = np.zeros((height, width, 3), dtype=np.uint8)
-    print(atk_img_arr.shape)
-    print(red_arr.shape)
-    for y in range(atk_img_arr.shape[0]):
-        for x in range(atk_img_arr.shape[1]):
+    atk_img_arr = np.zeros((width, height, 3), dtype=np.uint8)
+    for y in range(width):
+        for x in range(height):
             atk_img_arr[y][x][0] = red_arr[y][x]
             atk_img_arr[y][x][1] = blue_arr[y][x]
             atk_img_arr[y][x][2] = green_arr[y][x]
 
     return atk_img_arr
+
 
 # Terminates the program if an error is detected
 def terminate(error):
