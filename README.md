@@ -1,12 +1,4 @@
 # ScalingAttackSeniorProject
-This is the code repository for the senior project of:
+For the purposes of this project, as "Scaling Attack" is defined as the process of generating an attack image from a source and target image as outlined in the paper by Xiao et al (https://www.usenix.org/conference/usenixsecurity19/presentation/xiao). This project does not work properly as of yet.
 
-Michael Handlin
-
-Torie Umbdenstock
-
-Tara Vaghefi
-
-Glenn Cole
-
-Selena Guillen
+by: Michael Handlin, Torie Umbdenstock, Tara Vaghefi, Selena Guillen, Glenn Cole
