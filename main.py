@@ -1,49 +1,17 @@
-import numpy
 import ScalingAttack as sa
 from PIL import Image
 
-import cvxpy as cvx
-import dccp
+if __name__ == "__main__":
+    source_image = Image
+    target_image = Image
+    try:
+        # Source Image
+        source_image = Image.open("sheep.jpg")
 
-src_img = None
-tgt_img = None
-scale_func = Image.NEAREST  # Subject to change
-try:
-    src_img = Image.open("images/sheep.jpg")
-    tgt_img = Image.open("images/wolf_icon.jpg")
-    sa.src_img = src_img
-    sa.tgt_img = tgt_img
-except IOError:
-    print("One of the files was not found.")
-    exit(-1)
+        # Target Image
+        target_image = Image.open("wolf.jpg")
+    except IOError:
+        print("File Not Found")
+        exit(-1)
 
-sa.create_attack_image(src_img, tgt_img, scale_func)
-
-'''
-x = cvx.Variable(2)
-y = cvx.Variable(2)
-myprob = cvx.Problem(cvx.Maximize(cvx.norm(x-y,2)), [0<=x, x<=1, 0<=y, y<=1])
-print("problem is DCP:", myprob.is_dcp())   # false
-print("problem is DCCP:", dccp.is_dccp(myprob))  # true
-result = myprob.solve(method='dccp')
-print("x =", x.value)
-print("y =", y.value)
-print("cost value =", result[0])
-
-
-
-
-try:
-    src_img = Image.open("images/sheep.jpg")
-    tgt_img = Image.open("images/wolf_icon.jpg")
-except IOError:
-    print("One of the files was not found.")
-CR_red = sa.get_coefficients(src_img, tgt_img, "R", "R")
-CR_green = sa.get_coefficients(src_img, tgt_img, "G", "R")
-CR_blue = sa.get_coefficients(src_img, tgt_img, "B", "R")
-
-CL_red = sa.get_coefficients(src_img, tgt_img, "R", "L")
-CL_green = sa.get_coefficients(src_img, tgt_img, "G", "L")
-CL_blue = sa.get_coefficients(src_img, tgt_img, "B", "L")
-
-'''
+    sa.implement_attack(source_image, target_image)
