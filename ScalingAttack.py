@@ -1,199 +1,180 @@
-from PIL import Image, ImageChops, ImageTk
-import tkinter as tk
 import numpy as np
-import cvxpy as cvx
-import dccp
-
-tgt_img = Image.Image
-src_img = Image.Image
-n = 0
-m = 0
-n_prime = 0
-m_prime = 0
-
-def create_attack_image_command(src_img, tgt_img, scale_func, canvas):
-    attack_img = create_attack_image(src_img, tgt_img,scale_func)
-    display_img = ImageTk.PhotoImage(attack_img)
-    panel = tk.Label(canvas, image=display_img)
-    panel.image = display_img
-    canvas.create_window(300, 300, anchor=tk.CENTER, window=panel)
-
-def create_attack_image(src_img, tgt_img, scale_func):
-    global m
-    global n
-    global m_prime
-    global n_prime
-
-    def get_coefficients(arr):
-        I_mm = np.identity(m)
-        I_nn = np.identity(n)
-
-        IN_max = 255  # Typical maximum pixel value for most image formats
-
-        #D_mpm = Image.fromarray(arr).resize((m, m_prime))  # D_m'*m
-        D_mpm = Image.fromarray(I_mm * IN_max).resize((m, m_prime))  # D_m'*m
-        CL = np.array(D_mpm) / IN_max
-
-        # normalize CL
-        #for i in range(m_prime):
-        #    CL_sum = 0
-        #    for j in range(m):
-        #        CL_sum += CL[i, j]
-        #    CL[i, :] = CL[i, :] / CL_sum
-
-        # Find CR
-        # D_nnp = Image.fromarray(arr).resize((n_prime, n))  # D_n*n'
-        D_nnp = Image.fromarray(I_nn * IN_max).resize((n_prime, n))  # D_n*n'
-        CR = np.array(D_nnp) / IN_max
-
-        #for i in range(n):
-        #    CR_sum = 0
-        #    for j in range(n_prime):
-        #        CR_sum += CR[i, j]
-        #    CR[i, :] = CR[i, :] / CR_sum
-
-        return CL, CR
-
-    def get_color_arrays(img):
-        img_red, img_blue, img_green = img.split()
-        out_red = np.array(img_red)
-        out_blue = np.array(img_blue)
-        out_green = np.array(img_blue)
-        return out_red, out_blue, out_green
-
-    def scale_horizontal(red_arr, blue_arr, green_arr, CR):
-        scaled_red = np.dot(red_arr, CR[0])
-        scaled_green = np.dot(green_arr, CR[1])
-        scaled_blue = np.dot(blue_arr, CR[2])
-        return scaled_red, scaled_blue, scaled_green
-
-    def scale_vertical(red_arr, blue_arr, green_arr, CL):
-        scaled_red = np.dot(CL[0], red_arr)
-        scaled_green = np.dot(CL[1], green_arr)
-        scaled_blue = np.dot(CL[2], blue_arr)
-        return scaled_red, scaled_green, scaled_blue
-
-    n, m = src_img.size
-    n_prime, m_prime = tgt_img.size
-    attack_image = ImageChops.add(src_img, tgt_img.resize((n, m)))
-    atk_r_arr, atk_g_arr, atk_b_arr = get_color_arrays(attack_image)
-    #Get color matrices for each
-    src_img.convert('RGB')  # Remove alpha channel
-    tgt_img.convert('RGB')  # Remove Alpha Channel
-
-    #  Get manageable
-    tgt_red_arr, tgt_blue_arr, tgt_green_arr = get_color_arrays(tgt_img)
-    src_red_arr, src_blue_arr, src_green_arr = get_color_arrays(src_img)
-
-    #  Get coefficients per channel
-    CL_r, CR_r = get_coefficients(src_red_arr)
-    CL_g, CR_g = get_coefficients(src_green_arr)
-    CL_b, CR_b = get_coefficients(src_blue_arr)
-
-    s_scaled_r, s_scaled_g, s_scaled_b = scale_horizontal(src_red_arr, src_blue_arr, src_green_arr, (CR_r, CR_g, CR_b))
-    S_mnp = merge_channels(s_scaled_r, s_scaled_b, s_scaled_g, m, n_prime)
-    Image.fromarray(S_mnp).save("test3.jpg", "JPEG")
-    #  Initialize delta arrays
-    delta_v1_red = np.zeros(shape=(m, n_prime))
-    delta_v1_blue = np.zeros(shape=(m, n_prime))
-    delta_v1_green = np.zeros(shape=(m, n_prime))
-
-    S_mnp_img = Image.fromarray(S_mnp)
-    temp_atk = ImageChops.add(S_mnp_img, tgt_img.resize((n_prime, m)))
-    temp_atk.save("test5.jpg", "JPEG")
-    S_mnp_img.save("test.jpg", "JPEG")
-    src_img.resize((n_prime, m)).save("test2.jpg", "JPEG")
-    tgt_img.resize((n, m)).save("test4.jpg", "JPEG")
-    ImageChops.subtract(temp_atk, S_mnp_img).save("test6.jpg", "JPEG")
-    temp_atk_r_arr, temp_atk_b_arr, temp_atk_g_arr = get_color_arrays(temp_atk)
-
-    delta_v1_red = get_vert_perturbation(s_scaled_r, tgt_red_arr, CL_r, temp_atk_r_arr, atk_r_arr)
-    delta_v1_green = get_vert_perturbation(s_scaled_g, tgt_green_arr, CL_g, temp_atk_g_arr, atk_g_arr)
-    delta_v1_blue = get_vert_perturbation(s_scaled_b, tgt_blue_arr, CL_b, temp_atk_b_arr, atk_b_arr)
-
-    attack_mnp_r = s_scaled_r + delta_v1_red
-    attack_mnp_b = s_scaled_b + delta_v1_blue
-    attack_mnp_g = s_scaled_g + delta_v1_green
-
-    delta_h1_red = np.zeros(shape=(m, n))
-    delta_h1_blue = np.zeros(shape=(m, n))
-    delta_h1_green = np.zeros(shape=(m, n))
-    print("Please be patient. This may take some time.")
-    for row in range(m):  # For each column
-        delta_h1_red = get_horz_perturbation(s_scaled_r, tgt_red_arr, CR_r, attack_mnp_r, atk_r_arr)
-        delta_h1_green = get_horz_perturbation(s_scaled_g, tgt_green_arr, CR_g, attack_mnp_g, atk_g_arr)
-        delta_h1_blue = get_horz_perturbation(s_scaled_b, tgt_blue_arr, CR_b, attack_mnp_b, atk_b_arr)
-    attack_r = src_red_arr + delta_h1_red
-    attack_b = src_blue_arr + delta_h1_blue
-    attack_g = src_green_arr + delta_h1_green
-    attack_img_arr = merge_channels(attack_r, attack_b, attack_g, m, n)
-    attack_img = Image.fromarray(attack_img_arr)
-    return attack_img
+from PIL import Image
+import cvxpy as cp
+import cv2
 
 
-# if columnwise,
-#   S is column s[:, col], T is T[:, col], CX is CL.
-# if row-wise
-#   S is row S[row, :], T is A*[row, :], CX is CR.
-def get_vert_perturbation(S, T, CL, delta_1, A, obj='min', IN_max=255, epsilon=.01):
-    global m_prime
-    delta_out = np.zeros(shape=(m, n_prime))
-    delta_temp = np.dot(CL, delta_1)
+def get_coefficients(m, n, mprime, nprime, scale_func=Image.NEAREST):  # def get_coefficients(int, int, int, int)
+    # set image size and scaled image size, here image size is m*n = 700*350 and scaled m'*n' = 175*50
+    In_max = 255  # maximum pixel value in an image/white
 
-    for i in range(n_prime):
-        delta_out[:, i] = np.dot(np.dot(np.transpose(delta_temp[:, i]), np.identity(m_prime)), delta_temp[:, i])
+    # now we will create an identity matrix of size m*m, and multiply it with the highest pixel value ie white
+    # so basically we are creating a white box of size m*m, lets call it 'matrix_of_white_box'
 
-    #print((np.transpose(delta_temp[:, i]) * np.identity(m_prime) * delta_temp[:, i]).shape)
-    #for i in range(n_prime):
-    #    j = cvx.Variable(integer=range(m_prime))
-    #    constraints = (0 <= A[:, i],
-    #                   A[:, i] <= IN_max,
-    #                   cvx.norm(np.dot(CL, A)[:, i] - T[:, i]) <= epsilon * IN_max
+    # its more like a white diagonal in a black box
 
-    #    function = cvx.Minimize(cvx.norm(np.dot(np.dot(np.transpose(delta_temp[:, i]), np.identity(m_prime)), delta_temp[:, i])))
-    #    problem = cvx.Problem(function, constraints)
-    #    delta_out[:, i] = problem.solve(method='dccp')
+    matrix_of_white_box = np.identity(m) * In_max  # this creates a 2d array with all white values, hence a white box
 
+    # now we will scale this white box down to the scaling size of m*m' using the scaling algo
 
+    # for that we need to convert this 'matrix_of_white_box' into an image first, hence:
+    white_box = Image.fromarray(matrix_of_white_box.T)
+    # now we scale it using 'resize'
+    resized_white_box = white_box.resize((mprime, m), scale_func)
 
-    # j = cvx.Variable()
-    # Ensure constraints are met
-    #delta_1T = np.transpose(delta_1)
-    #print("CX Shape:", CL.shape)
-    #print("Delta_1 shape: ", delta_1.shape)
-    #function = cvx.Minimize(cvx.norm(delta_1))
-    # function = cvx.Minimize(np.dot(delta_1T[j, :], np.identity(m_prime)) * delta_1[:, j])
-    #constraints = ([0 <= A[:, j],
-    #                A[:, j] <= IN_max,
-    #                cvx.norm(np.dot(CL, A)[:, j] - T, "inf") <= epsilon * IN_max])
-    #problem = cvx.Problem(function, constraints)
-    #problem = cvx.Problem(function, [0 <= T, T <= IN_max , cvx.norm(CX*delta_1 - T, "inf") < epsilon *IN_max])
-    #problem = cvx.Problem(function, [0 <= j, j < len(S)])
-    return delta_out
+    # now the CL or the vertical coefficient matrix will be this 'resized_white_box' converted to array and then divided
+    # by the In_max value, which now just leaves the fractions, which are the coefficients for this scaling
+    # i.e. m'*m
+    CL = np.array(resized_white_box).T / In_max  # transposing because white_box is (175, 700) but CL is (700, 175)
 
+    print(CL.shape)
+    print(resized_white_box.size)
 
-def get_horz_perturbation(S, T, CR, delta_1, A, obj='min', IN_max=255, epsilon=.01):
-    global m_prime
-    delta_out = np.zeros(shape=(m, n))
-    delta_temp = np.dot(A, CR)
+    # we need to do the same for CR
+    # create matrix_of_white_box
+    matrix_of_white_box = np.identity(n) * In_max
 
-    for i in range(m_prime):
-        delta_out[i, :] = np.dot(np.dot(np.transpose(delta_temp[i, :]), np.identity(n_prime)), delta_temp[i, :])
-    return delta_out
+    # convert matrix to image
+    white_box = Image.fromarray(matrix_of_white_box.T)
+
+    # scale the image to n*n'
+    resized_white_box = white_box.resize((n, nprime), scale_func)
+
+    # convert this image to array and divide by In_max so we are left with coefficients
+    CR = np.array(resized_white_box).T / In_max
+
+    return CL, CR
 
 
-def merge_channels(red_arr, blue_arr, green_arr, width, height):
-    atk_img_arr = np.zeros((width, height, 3), dtype=np.uint8)
-    for y in range(width):
-        for x in range(height):
-            atk_img_arr[y][x][0] = red_arr[y][x]
-            atk_img_arr[y][x][1] = blue_arr[y][x]
-            atk_img_arr[y][x][2] = green_arr[y][x]
+def generate_attack_image(source_image, target_image, scale_func=Image.NEAREST):
+    # S
+    source_image_array = np.array(source_image)
 
-    return atk_img_arr
+    # T
+    target_image_array = np.array(target_image)
+
+    m, n = source_image_array.shape  # m = height of S image, n = width of S image
+    mprime, nprime = target_image_array.shape  # m' = height of T image, n' = width of T
+
+    # get coefficient matrices
+    CL, CR = get_coefficients(m, n, mprime, nprime, scale_func)
+
+    print(m, n, mprime, nprime, CL.shape, CR.shape)
+
+    # create empty delta_one_vertical matrix filled with zeroes of size m*n'
+    delta_one_vertical = np.zeros((m, nprime))
+
+    # get intermediate_source_image of size mxn'
+    intermediate_source_image = source_image.resize((m, nprime), scale_func)
+    intermediate_source_image_array = np.array(intermediate_source_image).T  # convert image to array
+
+    # Launch vertical scaling attack
+    for col in range(nprime):
+        delta_one_vertical[:, col] = get_perturbation(intermediate_source_image_array[:, col],
+                                                      target_image_array[:, col], CL, obj='min')
+
+    # intermediate attack image of size mxn', achieved by adding delta_one_vertical and intermediate_source_image
+    intermediate_attack_image_array = (intermediate_source_image_array + delta_one_vertical).astype('uint8')
+
+    # create delta_one_horizontal matrix filled with zeros of size m*n
+    delta_one_horizontal = np.zeros((m, n))
+
+    # Launch horizontal attack
+    for row in range(m):
+        delta_one_horizontal[row, :] = get_perturbation(source_image_array[row, :],
+                                                        intermediate_attack_image_array[row, :], CR, obj='min')
+
+    # get final attack_image_array
+    attack_image_array = (source_image_array + delta_one_horizontal).astype('uint8')
+
+    attack_image = Image.fromarray(attack_image_array)
+
+    return attack_image
 
 
-# Terminates the program if an error is detected
-def terminate(error):
-    print(error)
-    exit(1)
+# I tried to make this method universal
+# 1: It Maximizes or Minimizes the objective function depending on the value of 'obj' = min/max
+# 2: It toggles constraints based on convert_matrix.size, because we need to match matrices for successful dot product
+# def get_perturbation(np.1dArray, np.1dArray, np.2dArray, String):
+def get_perturbation(source_vector, target_vector, convert_matrix, obj):
+    n = source_vector.size
+
+    # Declare variable named 'perturb' to optimize. It is a 1d array/vector of size same as source_vector
+    # perturb is basically delta1 in 1dimension
+    # This method is where all the magic happens so read the details below to understand
+    # 1. perturb(or delta1) is an array/vector that can assume a lot of possible elements while being of size n
+    #    Further multiple sets(arrays) of n size can satisfy perturb
+    # 2. This method computes all the possible elements and sets that perturb can have or be while maintaining some rules
+    # 3. Rule a: Each element of (perturb when added with source_vector) should remain between 0 and 255(allowed pixel)
+    #    Rule b: delta2 should be bounded by(less than) 0.01*255
+    #            This kinda denotes that the difference between target image and output image should not exceed this value
+    #            delta2 = CL(perturb + source_vector) - target_vector; since attack_vector = CL*(perturb + source_vector)
+    #    Rule c: As we know that there could be multiple sets of perturb that could satisfy Rule a and b, therefore we
+    #            find the Lsquare norm(which is basically squareroot of(sum of squares of all elements of perturb).
+    #            In a way it gives the magnitude of an array/vector, our job is to find the set that has the min/max
+    #            Lsquare Norm off all the possible sets
+    perturb = cp.Variable(n)
+
+    # Create the function to be Maximised/Minimised (||delta1||2 --> L^2 norm of delta1)
+    function = cp.norm(perturb)
+
+    # Declare objective function based on value of obj
+    if obj == 'max':
+        objective = cp.Maximize(function)  # Rule c
+    else:
+        objective = cp.Minimize(function)  # Rule c
+
+    constraints = []
+    # set up constraints
+    # Rule a:
+    constraints += [source_vector + perturb >= 0]
+    constraints += [source_vector + perturb <= 255]
+
+    # Rule b:
+    # if the number of columns of convert_matrix coincide with the number of rows of source_vector(when its column vector)
+    if convert_matrix[0].size == source_vector.size:
+        constraints += [cp.norm_inf((convert_matrix * (source_vector + perturb)) - target_vector) <= (0.01 * 255)]
+    else:  # else Transpose convert_matrix to make them coincide (usually happens when source_vector is a row vector)
+        constraints += [cp.norm_inf((convert_matrix.T * (source_vector + perturb)) - target_vector) <= (0.01 * 255)]
+
+    # Create problem with objective and constraints
+    prob = cp.Problem(objective, constraints)
+
+    # Launch the solver
+    prob.solve()
+
+    # Testing:
+    print(prob.status)
+    print(perturb.value.shape)
+
+    # Solution array/vector is stored in the value field of perturb
+    return perturb.value
+
+
+def implement_attack(source_image, target_image):   # def implement_attack(Image, Image)
+
+    # Convert(to drop Alpha channel if any) and Split Source image into separate channels(stored as tuple)
+    source_image = source_image.convert('RGB').split()
+
+    # Convert(to drop Alpha channel if any) and Split Target image into separate channels(stored as tuple)
+    target_image = target_image.convert('RGB').split()
+
+    # store scaling function in a variable scale_func, we can toggle between different scaling functions to be used
+    # directly from here, below are some examples
+    scale_func = Image.NEAREST
+
+    # generate attack image channels R, G and B
+    # We could use a for loop and remove some clutter but this just makes it easy to understand
+    R = generate_attack_image(source_image[0], target_image[0], scale_func)
+    G = generate_attack_image(source_image[1], target_image[1], scale_func)
+    B = generate_attack_image(source_image[2], target_image[2], scale_func)
+
+    # merge the three channels to form the attack image
+    attack_image = Image.merge('RGB', (R, G, B))
+
+    # testing: show generated image and scaled image
+    attack_image.show()
+    attack_image.resize(target_image[0].size, scale_func).show()
+
+    # save the generated attack image
+    attack_image.save("attack_image.jpg")
